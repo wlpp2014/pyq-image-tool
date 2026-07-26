@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>朋友圈配图生成器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        h1 { text-align: center; font-size: 22px; margin-bottom: 20px; }
+        .input-group {
+            margin-bottom: 15px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 12px;
+        }
+        label { display: block; font-size: 14px; color: #666; margin-bottom: 8px; }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        textarea { min-height: 80px; resize: vertical; }
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+        .btn-primary { background: #07c160; color: white; }
+        .btn-secondary { background: #fff; color: #333; border: 1px solid #ddd; }
+        .canvas-wrapper {
+            position: relative;
+            width: 100%;
+            padding-bottom: 177.78%;
+            background: #ddd;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            display: none;
+        }
+        .canvas-wrapper.show { display: block; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .tips { background: #fff; padding: 15px; border-radius: 12px; font-size: 13px; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>🎯 朋友圈配图生成器</h1>
+    
+    <div class="input-group">
+        <label>1. 粘贴背景图链接（从Coze复制）</label>
+        <input type="text" id="bgUrl" placeholder="https://...">
+    </div>
+    
+    <div class="input-group">
+        <label>2. 粘贴朋友圈文案</label>
+        <textarea id="text" placeholder="粘贴完整文案，自动提取金句..."></textarea>
+    </div>
+    
+    <button class="btn btn-primary" onclick="generate()">🎨 生成配图</button>
+    <button class="btn btn-secondary" onclick="download()" id="downloadBtn" style="display:none;">💾 下载图片</button>
+    
+    <div class="canvas-wrapper" id="canvasWrapper">
+        <canvas id="canvas" width="1080" height="1920"></canvas>
+    </div>
+    
+    <div class="tips">
+        <h3>💡 使用步骤</h3>
+        <p>1. 在Coze Bot生成文案和背景图</p>
+        <p>2. 复制背景图链接粘贴到上方</p>
+        <p>3. 复制文案粘贴到上方</p>
+        <p>4. 点击"生成配图"</p>
+        <p>5. 长按图片保存或点击下载</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function extractKeySentence(text) {
+            const lines = text.split('\n').filter(l => l.trim());
+            for (let line of lines) {
+                const clean = line.replace(/[💬🔥⚠️⭐#📋🎨🖼️✅💡]/g, '').trim();
+                const noQuotes = clean.replace(/["「」'"']/g, '').trim();
+                if (noQuotes.length >= 5 && noQuotes.length <= 18) return noQuotes;
+            }
+            if (lines[0]) {
+                const first = lines[0].replace(/[💬🔥⚠️⭐#📋🎨🖼️✅💡]/g, '').trim();
+                return first.length > 18 ? first.substring(0, 18) + '...' : first;
+            }
+            return '朋友圈精选';
+        }
+        
+        async function generate() {
+            const bgUrl = document.getElementById('bgUrl').value.trim();
+            const text = document.getElementById('text').value.trim();
+            
+            if (!bgUrl) { alert('请先粘贴背景图链接'); return; }
+            
+            const wrapper = document.getElementById('canvasWrapper');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            try {
+                const keySentence = extractKeySentence(text);
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = () => reject(new Error('背景图加载失败'));
+                    img.src = bgUrl;
+                });
+                
+                // 绘制背景
+                ctx.drawImage(img, 0, 0, 1080, 1920);
+                
+                // 底部渐变遮罩
+                const gradient = ctx.createLinearGradient(0, 1200, 0, 1920);
+                gradient.addColorStop(0, 'rgba(0,0,0,0)');
+                gradient.addColorStop(0.5, 'rgba(0,0,0,0.5)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 1200, 1080, 720);
+                
+                // 绘制文字
+                ctx.textAlign = 'center';
+                let fontSize = keySentence.length > 12 ? 60 : 80;
+                ctx.font = `bold ${fontSize}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+                
+                const x = 540, y = 1600;
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.fillText(keySentence, x + 3, y + 3);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(keySentence, x, y);
+                
+                wrapper.classList.add('show');
+                downloadBtn.style.display = 'block';
+                
+            } catch (err) {
+                alert('生成失败：' + err.message);
+            }
+        }
+        
+        function download() {
+            const link = document.createElement('a');
+            link.download = 'pyq_' + Date.now() + '.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        }
+    </script>
+</body>
+</html>
